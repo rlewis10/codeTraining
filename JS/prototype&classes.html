@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>data demo</title>
+  <script src="https://code.jquery.com/jquery-1.10.2.js"></script>
+
+</head>
+
+<body>
+<p id="helloWorld1">Hello World!</p>
+<p id="helloWorld2">Hello World!</p>
+
+<p>Form</p>
+<form accept-charset="UTF-8" method="post" action="https://go.pardot.com/l/36402/2018-06-06/snrhpy" class="form" id="pardot-form">
+<p class="form-field  email pd-text required">
+<label class="field-label" for="36402_155962pi_36402_155962">Email</label>
+<input type="text" name="36402_155962pi_36402_155962" id="36402_155962pi_36402_155962" value="" class="text" size="30" maxlength="255" onchange="piAjax.auditEmailField(this, 36402, 155962, 574897228);">
+</p>
+</form>
+
+<div class="pd" pdTarget="helloWorld1" pardot-region="blah1" pardot-region-type="simple" style="display: none">
+    {
+    "This is the font color": "red",
+    "size": "50px",
+    "form label position" : "Yes"
+    }
+</div>
+
+<div class="pd" pdTarget="helloWorld2" pardot-region="blah2" pardot-region-type="simple" style="display: none">
+    {
+        "This is the font color": "green",
+        "size": "10px",
+        "form label position" : "No",
+        "style (Bold / Italic / Underline)" : "Underline"
+    }
+</div>
+
+<script>
+
+//0. global setup
+const srcClass = "pd" //class name of the <div> storing the pd user settings.
+const externalCssMappingFile = null //location of the external pdOption's file
+
+//1. construct object for holding landing page settings, called PduSettings
+
+class PduSettings {
+    constructor (pdTarget, pduOptions) {
+            this.pdTarget = pdTarget
+            this.pduOptions = pduOptions
+            }
+}
+
+//2. create array of pd user settings (pduSettings)
+
+function createpdSettingsObj(srcClass){
+    const obj = []
+    $('.'+srcClass).each(function(d){
+        let newobj = new PduSettings($(this).attr("pdTarget"), JSON.parse($(this).text()))
+        obj.push(newobj)
+    });
+    return obj
+}
+//testing
+console.log(createpdSettingsObj(srcClass))
+
+
+// TESTING: external object file
+
+var extRefFile =[
+    {
+    pdTarget: "helloWorld2", 
+    pdOptions: [
+        {"This is the font color" : {funcType : "updateProp", cssProp : "color"}},
+        {"form label position" : {funcType : "updateClass", cssProp : "class1"}},
+        {"size" : {funcType : "updateProp", cssProp : "font-size"}},
+        {"style (Bold / Italic / Underline)" : {funcType: "customFunc", cssProp : function(cssVal){
+                                                                                        switch(cssVal) {
+                                                                                            case "Bold":
+                                                                                                    return $(this.pdTarget).css("font-weight", cssVal)
+                                                                                                break
+                                                                                            case "Underline":
+                                                                                                    return $(this.pdTarget).css("text-decoration", cssVal)
+                                                                                                break
+                                                                                         }
+                                                                                        }
+        }}
+                ]
+    },
+    {
+    pdTarget: "helloWorld2", 
+    pdOptions: [
+        {"color2" : {funcType : "updateProp", cssProp : "color2"}}
+                ]
+    }
+]  
+
+//testing external file
+
+    let externalfile = $.getScript('cssMapping.js', function(data) {
+        console.log(data)})
+
+//3. get the options (these are the settings) in the external file and lookup the option Key in pdOption's by passing the target HTML pd user settings (srcClass.pdTarget) from the DIV in the pd user settings
+
+function findpdOption(sTarget){
+    let file = extRefFile[0].pdOptions
+    let match = file.find(function(item){
+        return Object.keys(item) == sTarget
+    })
+    return match[sTarget]
+}
+//4. construct object for landing page settings (PdSettings), to lookup CSS functions.
+
+    class cssMapping {
+        constructor(pdTarget, pdLabel, funcType, cssProp) {
+                this.pdTarget = pdTarget            //target HTML element
+                this.pdLabel = pdLabel              //label in the HTML user settings
+                this.funcType = funcType            //method type to call
+                this.cssProp = cssProp || null      //css property name or class name, referenced from extRefFile to find the appropiate method.
+            }
+    }
+
+//5. define prototype methods on CssMapping Object
+
+        cssMapping.prototype.updateProp = function (cssVal) {
+            return $(this.pdTarget).css(this.cssProp, cssVal)
+        }
+
+        cssMapping.prototype.updateClass = function (cssVal){
+            switch(cssVal) {
+                case "Yes":
+                        return $(this.pdTarget).addClass(this.cssProp)
+                    break
+                case "No":
+                        return $(this.pdTarget).removeClass(this.cssProp)
+                    break
+            }
+        }
+
+        cssMapping.prototype.customFunc = function(callback, cssVal) {
+            if(callback  && typeof(callback) === "function")
+                {callback.call(this, cssVal)}
+        }
+
+//6. create array of cssMapping objects based on external object file
+
+function createcssMappingObj(srcClass){
+    const pduSettings = createpdSettingsObj(srcClass)
+    const cssObjects = []
+
+    //6.1 loop over pd user settings (pduSettings)
+    for (let i in pduSettings) {
+
+        let pdTarget = ('#'+pduSettings[i].pdTarget)
+        let pduOptions = pduSettings[i].pduOptions
+
+        //6.2 loop over each setting in pduOptions
+        
+        for(let option in pduOptions){
+
+            let pdLabel = option                            //get the label from the HTML USER settings
+            let funcType = findpdOption(option).funcType    //get the method type that will be run on the object from the external pdOptions file
+            let cssProp = findpdOption(option).cssProp      //get the css property or class name that will be run on the object from the external pdOptions file
+            let cssVal = pduOptions[option] || null         //get the css value from the HTML USER settings, based on option key in the external pdOptions file
+
+            //6.3 create new cssMapping object, placing settings into object and applying relevant prototype method.
+            
+            switch (funcType){
+                case "updateProp" :
+                cssObjects.push( new cssMapping(pdTarget, pdLabel, funcType, cssProp).updateProp(cssVal))       //create new Css Mapping object for updating css properties
+                break
+
+                case "updateClass" :
+                cssObjects.push( new cssMapping(pdTarget, pdLabel, funcType, cssProp).updateClass(cssVal))       //create new Css Mapping object for adding or removing a class
+                break
+
+                case "customFunc" : 
+                cssObjects.push( new cssMapping(pdTarget, pdLabel, funcType).customFunc(cssProp, cssVal))       //create new Css Mapping object for custom functions
+                break
+
+            }
+        }
+    } 
+    console.log(cssObjects)
+}
+
+createcssMappingObj(srcClass)   //7. run command!
+</script>
+ 
+</body>
+</html>
